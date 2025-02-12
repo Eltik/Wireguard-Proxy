@@ -1,7 +1,7 @@
 import { WireGuardManager } from "./wireguard";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { IConfig } from "./types";
+import { IConfig } from "../types/types";
 
 export class ProxyManager {
     private wgManager: WireGuardManager;

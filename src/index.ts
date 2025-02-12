@@ -1,4 +1,4 @@
-import { ProxyManager } from "./proxy-manager";
+import { ProxyManager } from "./lib/proxy-manager";
 
 async function main() {
     const proxyManager = new ProxyManager();
