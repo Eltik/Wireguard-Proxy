@@ -145,7 +145,6 @@ export class WireGuardManager {
                 await this.disconnect();
             }
 
-            console.log(`Connecting to ${configPath}`);
             await execAsync(`sudo wg-quick up ${configPath}`);
             this.currentConfig = configName;
             console.log(`Connected to ${configName}`);
