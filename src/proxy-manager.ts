@@ -1,13 +1,29 @@
-import fs from "fs/promises";
-import path from "path";
-import type { IConfig } from "./types";
+import { WireGuardManager } from "./wireguard";
+import * as path from "path";
+import * as fs from "fs/promises";
+import { IConfig } from "./types";
 
 export class ProxyManager {
+    private wgManager: WireGuardManager;
+    private configsPath: string;
     private configs: IConfig[] = [];
-    private currentConfig: IConfig | null = null;
 
-    constructor() {}
+    constructor() {
+        this.configsPath = path.join(process.cwd(), "configs");
+        this.wgManager = new WireGuardManager(this.configsPath);
+    }
 
+    /**
+     * Initialize the proxy manager
+     */
+    async init(): Promise<void> {
+        await this.wgManager.init();
+        await this.readConfigs();
+    }
+
+    /**
+     * Read and parse proxy configurations
+     */
     async readConfigs() {
         const configsDir = path.join(process.cwd(), process.env.CONFIGS_DIR || "configs");
         const configs = await fs.readdir(configsDir);
@@ -44,16 +60,64 @@ export class ProxyManager {
         return config;
     }
 
-    async rotate() {
-        if (this.currentConfig) {
-            this.currentConfig.active = false;
-        }
+    /**
+     * Add a new proxy configuration
+     */
+    async addProxy(config: IConfig): Promise<void> {
+        // Save JSON config
+        const jsonPath = path.join(this.configsPath, `${config.name}.json`);
+        await fs.writeFile(jsonPath, JSON.stringify(config, null, 2));
 
-        this.currentConfig = this.configs[Math.floor(Math.random() * this.configs.length)];
-        this.currentConfig.active = true;
+        // Add to WireGuard
+        await this.wgManager.addConfig(config.name, JSON.stringify(config, null, 2));
+
+        this.configs.push(config);
     }
 
-    async getCurrentConfig() {
-        return this.currentConfig;
+    /**
+     * Get current proxy configuration
+     */
+    async getCurrentConfig(): Promise<IConfig | null> {
+        const status = await this.wgManager.getStatus();
+        if (!status) return null;
+
+        return this.configs.find((config) => status.includes(config.publicKey) || status.includes(config.privateKey)) || null;
+    }
+
+    /**
+     * Rotate to next proxy
+     */
+    async rotate(): Promise<void> {
+        await this.wgManager.rotateIP();
+    }
+
+    /**
+     * Connect to a specific proxy
+     */
+    async connect(name?: string): Promise<void> {
+        if (name) {
+            await this.wgManager.connect(name);
+        } else {
+            const currentConfig = await this.getCurrentConfig();
+            if (currentConfig) {
+                await this.wgManager.connect(currentConfig.name);
+            } else {
+                throw new Error("No proxy configuration found");
+            }
+        }
+    }
+
+    /**
+     * Disconnect current proxy
+     */
+    async disconnect(): Promise<void> {
+        await this.wgManager.disconnect();
+    }
+
+    /**
+     * Get all available proxy configurations
+     */
+    getConfigs(): IConfig[] {
+        return [...this.configs];
     }
 }
